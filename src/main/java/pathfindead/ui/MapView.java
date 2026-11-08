@@ -13,10 +13,13 @@ import pathfindead.model.Graph;
 import pathfindead.model.Node;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 /** Lienzo donde se dibuja la ciudad isométrica abandonada con su grafo encima. */
 public class MapView extends Canvas {
@@ -87,6 +90,11 @@ public class MapView extends Canvas {
 
     private boolean showCosts = true;
 
+    // ---------- Resultado resaltado de un algoritmo (Fase 7) ----------
+    private final Set<Edge> highlightEdges = new HashSet<>();   // corredores del resultado
+    private final List<Node> highlightNodes = new ArrayList<>(); // lugares de la ruta, en orden
+    private Color highlightColor = Color.web("#00e5ff");
+
     public MapView(Graph city, double width, double height) {
         super(width, height);
         this.city = city;
@@ -102,6 +110,55 @@ public class MapView extends Canvas {
     public void setShowCosts(boolean showCosts) {
         this.showCosts = showCosts;
         draw();
+    }
+
+    // =====================================================================
+    // Resaltar resultados de los algoritmos (Fase 7)
+    // =====================================================================
+
+    /** Resalta una ruta (lista de lugares en orden), por ejemplo la de Dijkstra. */
+    public void showRoute(List<Node> path, Color color) {
+        highlightEdges.clear();
+        highlightNodes.clear();
+        highlightNodes.addAll(path);
+        for (int i = 0; i + 1 < path.size(); i++) {
+            Edge e = findEdge(path.get(i), path.get(i + 1));
+            if (e != null) {
+                highlightEdges.add(e);
+            }
+        }
+        highlightColor = color;
+        draw();
+    }
+
+    /** Resalta un conjunto de corredores, por ejemplo un árbol de expansión mínima. */
+    public void showEdges(Collection<Edge> edges, Color color) {
+        highlightEdges.clear();
+        highlightNodes.clear();
+        highlightEdges.addAll(edges);
+        highlightColor = color;
+        draw();
+    }
+
+    /** Quita el resaltado y vuelve a mostrar todos los corredores igual. */
+    public void clearHighlight() {
+        highlightEdges.clear();
+        highlightNodes.clear();
+        draw();
+    }
+
+    private boolean hasHighlight() {
+        return !highlightEdges.isEmpty() || !highlightNodes.isEmpty();
+    }
+
+    /** Busca el corredor que une dos lugares (o null si no existe). */
+    private Edge findEdge(Node a, Node b) {
+        for (Edge e : city.getEdges(a)) {
+            if (e.connects(b)) {
+                return e;
+            }
+        }
+        return null;
     }
 
     // =====================================================================
@@ -292,6 +349,7 @@ public class MapView extends Canvas {
         drawWalls(gc, false);       // muros del frente
         drawFog(gc);                // niebla en los bordes
         drawCorridors(gc);
+        drawHighlight(gc);          // Fase 7: resultado del algoritmo
         if (showCosts) {
             drawCostLabels(gc);
         }
@@ -855,6 +913,8 @@ public class MapView extends Canvas {
         gc.setLineDashes(null);
 
         for (Edge e : city.getAllEdges()) {
+            // Si hay un resultado resaltado, los demás corredores se ven tenues
+            gc.setGlobalAlpha(hasHighlight() && !highlightEdges.contains(e) ? 0.3 : 1);
             gc.setStroke(Color.rgb(0, 0, 0, 0.75));
             gc.setLineWidth(5);
             strokeCorridor(gc, e);
@@ -862,22 +922,56 @@ public class MapView extends Canvas {
             gc.setLineWidth(2.5);
             strokeCorridor(gc, e);
         }
+        gc.setGlobalAlpha(1);
+    }
+
+    /** Dibuja el resultado del algoritmo: corredores gruesos del color elegido y anillos en la ruta. */
+    private void drawHighlight(GraphicsContext gc) {
+        for (Edge e : highlightEdges) {
+            gc.setStroke(Color.rgb(0, 0, 0, 0.85));
+            gc.setLineWidth(11);
+            strokeCorridor(gc, e);
+            gc.setStroke(highlightColor);
+            gc.setLineWidth(6);
+            strokeCorridor(gc, e);
+            gc.setStroke(Color.WHITE);              // línea central punteada
+            gc.setLineWidth(1.5);
+            gc.setLineDashes(6, 6);
+            strokeCorridor(gc, e);
+            gc.setLineDashes(null);
+        }
+        // Anillos en los lugares de la ruta; el origen y el destino más grandes
+        for (int i = 0; i < highlightNodes.size(); i++) {
+            Node n = highlightNodes.get(i);
+            boolean end = i == 0 || i == highlightNodes.size() - 1;
+            double r = end ? 13 : 10;
+            double x = sx(n), y = sy(n) - FLY_H;
+            gc.setStroke(Color.rgb(0, 0, 0, 0.8));
+            gc.setLineWidth(5);
+            gc.strokeOval(x - r, y - r, r * 2, r * 2);
+            gc.setStroke(highlightColor);
+            gc.setLineWidth(3);
+            gc.strokeOval(x - r, y - r, r * 2, r * 2);
+        }
     }
 
     private void drawCostLabels(GraphicsContext gc) {
         gc.setFont(Font.font("Monospaced", FontWeight.BOLD, 10));
         for (Edge e : city.getAllEdges()) {
+            boolean marked = highlightEdges.contains(e);
+            gc.setGlobalAlpha(hasHighlight() && !marked ? 0.3 : 1);
             double[] p = labelPos.get(e);
             String text = String.format("%.1f", e.getCost());
             double w = text.length() * 6.5 + 6;
             gc.setFill(Color.rgb(15, 15, 15, 0.85));
             gc.fillRect(p[0] - w / 2, p[1] - 7, w, 14);
-            gc.setStroke(dangerColor(e));
-            gc.setLineWidth(1);
+            gc.setStroke(marked ? highlightColor : dangerColor(e));
+            gc.setLineWidth(marked ? 2 : 1);
             gc.strokeRect(p[0] - w / 2, p[1] - 7, w, 14);
             gc.setFill(Color.WHITE);
             gc.fillText(text, p[0] - w / 2 + 3, p[1] + 4);
         }
+        gc.setGlobalAlpha(1);
     }
 
     private void drawNodeMarkers(GraphicsContext gc) {

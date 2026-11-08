@@ -2,24 +2,30 @@ package pathfindead;
 
 import javafx.application.Application;
 import javafx.scene.Scene;
-import javafx.scene.layout.StackPane;
+import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
 import pathfindead.model.CityFactory;
 import pathfindead.model.Graph;
+import pathfindead.ui.ControlPanel;
 import pathfindead.ui.MapView;
 
 public class Main extends Application {
 
     @Override
     public void start(Stage stage) {
-        // 1. Crear la ciudad (el grafo con sus 14 lugares y 24 conexiones)
+        // 1. Crear la ciudad (el grafo)
         Graph city = CityFactory.createCity();
 
-        // 2. Crear el lienzo que la dibuja (el dibujo se ajusta a este tamaño)
+        // 2. El mapa y el panel de controles
         MapView mapa = new MapView(city, 940, 600);
+        ControlPanel panel = new ControlPanel(city, mapa);
 
-        // 3. Mostrarlo en la ventana
-        Scene escena = new Scene(new StackPane(mapa), 940, 600);
+        // 3. BorderPane: el mapa en el centro y el panel a la derecha
+        BorderPane root = new BorderPane();
+        root.setCenter(mapa);
+        root.setRight(panel);
+
+        Scene escena = new Scene(root, 940 + 280, 600);
         stage.setTitle("Pathfindead");
         stage.setScene(escena);
         stage.setResizable(false);
