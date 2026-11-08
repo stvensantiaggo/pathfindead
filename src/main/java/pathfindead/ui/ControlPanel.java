@@ -21,9 +21,13 @@ import pathfindead.algorithms.SpanningTree;
 import pathfindead.model.Edge;
 import pathfindead.model.Graph;
 import pathfindead.model.Node;
+import pathfindead.simulation.Drone;
+import pathfindead.simulation.SupplyState;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -45,6 +49,7 @@ public class ControlPanel extends VBox {
     private static final Color FLOYD_COLOR = Color.web("#ff4fd8");      // magenta
     private static final Color PRIM_COLOR = Color.web("#c6ff00");       // verde lima
     private static final Color KRUSKAL_COLOR = Color.web("#2979ff");    // azul
+    private static final Color DRONE_COLOR = Color.web("#ffb300");      // ámbar: ruta del dron
 
     private final Graph city;
     private final MapView map;
@@ -55,10 +60,20 @@ public class ControlPanel extends VBox {
     private final Label resultTitle = new Label("RESULTADO");
     private final Label result = new Label();
 
-    public ControlPanel(Graph city, MapView map) {
-        super(10);
+    // ---------- Fase 8: dron ----------
+    private final Drone drone;
+    private final SupplyState supplies;
+    private final DroneAnimation animation;
+    private final Label droneStatus = new Label();
+    private final Deque<String> droneLog = new ArrayDeque<>();   // últimos mensajes del dron
+
+    public ControlPanel(Graph city, MapView map, Drone drone, SupplyState supplies) {
+        super(8);
         this.city = city;
         this.map = map;
+        this.drone = drone;
+        this.supplies = supplies;
+        this.animation = new DroneAnimation(drone, supplies, map, this::logEvent, this::updateDroneStatus);
 
         setPadding(new Insets(16));
         setPrefWidth(280);
@@ -108,6 +123,20 @@ public class ControlPanel extends VBox {
         showResult("RESULTADO", Color.web("#d8d2c0"),
                 "Elige origen, destino y algoritmo, y pulsa Ejecutar.");
 
+        // ---------- Fase 8: controles del dron ----------
+        Label droneTitle = new Label("DRON");
+        droneTitle.setStyle("-fx-text-fill: #ffb300; -fx-font-size: 14px; -fx-font-weight: bold;");
+        droneStatus.setStyle("-fx-text-fill: #f0e8c8; -fx-font-family: 'Monospaced'; -fx-font-size: 12px;");
+
+        Button send = new Button("Enviar al destino");
+        send.setStyle("-fx-background-color: #ffb300; -fx-font-weight: bold;");
+        send.setOnAction(event -> sendDrone(destination.getValue()));
+
+        Button home = new Button("Volver a la base");
+        home.setOnAction(event -> sendDrone(drone.getBase()));
+
+        updateDroneStatus();
+
         getChildren().addAll(
                 title,
                 label("Origen"), origin,
@@ -115,6 +144,9 @@ public class ControlPanel extends VBox {
                 label("Algoritmo"), algorithm,
                 new HBox(8, run, clear),
                 showCosts,
+                new Separator(),
+                droneTitle, droneStatus,
+                new HBox(8, send, home),
                 new Separator(),
                 resultTitle, scroll
         );
@@ -242,6 +274,62 @@ public class ControlPanel extends VBox {
             sb.append(String.format("%2d. %-13s %6.2f%n", i++, e, e.getCost()));
         }
         return sb.toString();
+    }
+
+    // =====================================================================
+    // Fase 8: enviar el dron
+    // =====================================================================
+
+    /** Calcula con Dijkstra la ruta desde donde está el dron hasta el lugar indicado y la vuela. */
+    private void sendDrone(Node target) {
+        if (target == null) {
+            logEvent("Elige un destino.");
+            return;
+        }
+        if (drone.isMoving()) {
+            logEvent("El dron ya está en vuelo.");
+            return;
+        }
+        if (target.equals(drone.getCurrent())) {
+            logEvent("El dron ya está en " + target.getId() + ".");
+            return;
+        }
+        PathResult r = Dijkstra.shortestPath(city, drone.getCurrent().getId(), target.getId());
+        if (!r.isFound()) {
+            logEvent("No hay ruta hacia " + target.getId() + ".");
+            return;
+        }
+        // Batería: hacia la base siempre se permite volar (regreso de emergencia)
+        boolean toBase = target.equals(drone.getBase());
+        if (!toBase && !drone.canFly(r.path())) {
+            logEvent(String.format("Batería insuficiente: necesita %.1f %% y tiene %.1f %%. Vuelve a la base.",
+                    drone.batteryNeededFor(r.path()), drone.getBattery()));
+            return;
+        }
+        drone.assignRoute(r.path());   // punto 85
+        map.showRoute(r.path(), DRONE_COLOR);
+        logEvent("Despega: " + ids(r) + String.format(" (costo %.2f)", r.totalCost()));
+        animation.start();             // punto 87
+    }
+
+    /** Agrega un mensaje al registro del dron (se muestran los 10 más recientes). */
+    private void logEvent(String message) {
+        droneLog.addFirst("• " + message);
+        while (droneLog.size() > 10) {
+            droneLog.removeLast();
+        }
+        showResult("REGISTRO DEL DRON", DRONE_COLOR, String.join("\n", droneLog));
+    }
+
+    /** Muestra ubicación, batería, carga y refugios abastecidos. */
+    private void updateDroneStatus() {
+        String where = drone.isMoving()
+                ? drone.getCurrent().getId() + " → " + drone.getNext().getId()
+                : drone.getCurrent().getId();
+        droneStatus.setText(String.format(
+                "Ubicación: %s%nBatería:   %.1f %%%nCarga:     %d / %d%nRefugios:  %d / %d abastecidos",
+                where, drone.getBattery(), drone.getCargo(), drone.getCapacity(),
+                supplies.suppliedCount(), supplies.all().size()));
     }
 
     /** Convierte una ruta en texto: "C-01 → R-04 → R-05". */

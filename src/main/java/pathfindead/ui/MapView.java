@@ -11,6 +11,9 @@ import javafx.scene.text.FontWeight;
 import pathfindead.model.Edge;
 import pathfindead.model.Graph;
 import pathfindead.model.Node;
+import pathfindead.simulation.Drone;
+import pathfindead.simulation.Shelter;
+import pathfindead.simulation.SupplyState;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -95,6 +98,10 @@ public class MapView extends Canvas {
     private final List<Node> highlightNodes = new ArrayList<>(); // lugares de la ruta, en orden
     private Color highlightColor = Color.web("#00e5ff");
 
+    // ---------- Fase 8: dron y estado de los refugios ----------
+    private Drone drone;              // null si todavía no hay dron
+    private SupplyState supplies;     // null si todavía no hay refugios con estado
+
     public MapView(Graph city, double width, double height) {
         super(width, height);
         this.city = city;
@@ -109,6 +116,22 @@ public class MapView extends Canvas {
 
     public void setShowCosts(boolean showCosts) {
         this.showCosts = showCosts;
+        draw();
+    }
+
+    // =====================================================================
+    // Dron y refugios (Fase 8)
+    // =====================================================================
+
+    /** Punto 84: el mapa dibuja este dron. */
+    public void setDrone(Drone drone) {
+        this.drone = drone;
+        draw();
+    }
+
+    /** El mapa muestra cuántos suministros ha recibido cada refugio. */
+    public void setSupplies(SupplyState supplies) {
+        this.supplies = supplies;
         draw();
     }
 
@@ -292,6 +315,7 @@ public class MapView extends Canvas {
             double x = sx(n), y = sy(n) - FLY_H;
             taken.add(new double[]{x - 7, y - 7, 14, 14});
             taken.add(new double[]{x - 16, y - 24, 32, 14});
+            taken.add(new double[]{x - 14, y + 7, 28, 8});
         }
         for (Edge e : city.getAllEdges()) {
             double[] spot = findLabelSpot(e, taken);
@@ -345,6 +369,7 @@ public class MapView extends Canvas {
         drawStreets(gc);            // avenidas, carriles y pasos peatonales
         drawWalls(gc, true);        // muros del fondo
         drawCorridorShadows(gc);
+        drawDroneShadow(gc);        // Fase 8: sombra del dron en el suelo
         drawObjects(gc);            // edificios, nodos, carros y decoración
         drawWalls(gc, false);       // muros del frente
         drawFog(gc);                // niebla en los bordes
@@ -354,6 +379,8 @@ public class MapView extends Canvas {
             drawCostLabels(gc);
         }
         drawNodeMarkers(gc);
+        drawSupplyBars(gc);         // Fase 8: suministros de cada refugio
+        drawDrone(gc);              // Fase 8: el dron, encima de todo
         drawLegend(gc);
 
         gc.restore();
@@ -877,6 +904,123 @@ public class MapView extends Canvas {
     }
 
     // =====================================================================
+    // Dron y suministros (Fase 8, puntos 83 y 84)
+    // =====================================================================
+
+    /** Posición del dron en la cuadrícula (puede estar entre dos lugares). */
+    private double[] droneGridPosition() {
+        Node a = drone.getCurrent();
+        Node b = drone.getNext();
+        if (b == null) {
+            return new double[]{a.getX(), a.getY()};
+        }
+        double t = drone.getProgress();
+        return new double[]{a.getX() + (b.getX() - a.getX()) * t, a.getY() + (b.getY() - a.getY()) * t};
+    }
+
+    /** Posición del dron en pantalla: sobre el corredor si vuela, o encima del marcador si está quieto. */
+    private double[] droneScreenPosition() {
+        Node a = drone.getCurrent();
+        Node b = drone.getNext();
+        if (b == null) {
+            return new double[]{sx(a), sy(a) - FLY_H - 50};   // flotando sobre el ID del lugar
+        }
+        Edge e = findEdge(a, b);
+        double t = e.getA().equals(a) ? drone.getProgress() : 1 - drone.getProgress();
+        return pointOn(e, t);                                 // sigue la línea (recta o curva)
+    }
+
+    /** Sombra del dron en el suelo, para dar sensación de altura. */
+    private void drawDroneShadow(GraphicsContext gc) {
+        if (drone == null) return;
+        double[] g = droneGridPosition();
+        double x = px(g[0], g[1]), y = py(g[0], g[1], 0);
+        gc.setFill(Color.rgb(0, 0, 0, 0.3));
+        gc.fillOval(x - 14, y - 5, 28, 10);
+    }
+
+    /** Punto 83: el dron es un cuadricóptero con 4 hélices, luces, carga y barra de batería. */
+    private void drawDrone(GraphicsContext gc) {
+        if (drone == null) return;
+        double[] p = droneScreenPosition();
+
+        // Se dibuja alrededor del punto (0, 0) y luego se traslada y agranda
+        gc.save();
+        gc.translate(p[0], p[1]);
+        gc.scale(1.7, 1.7);
+
+        // Halo claro para que el dron resalte sobre cualquier fondo
+        gc.setFill(Color.rgb(255, 255, 255, 0.35));
+        gc.fillOval(-20, -11, 40, 22);
+
+        // Brazos en X hacia las 4 hélices
+        double[][] rotors = {{-13, -6}, {13, -6}, {-13, 6}, {13, 6}};
+        gc.setStroke(Color.web("#1e2226"));
+        gc.setLineWidth(3);
+        for (double[] r : rotors) {
+            gc.strokeLine(0, 0, r[0], r[1]);
+        }
+        // Hélices (óvalos semitransparentes, como si giraran)
+        for (double[] r : rotors) {
+            gc.setFill(Color.rgb(220, 230, 235, 0.6));
+            gc.fillOval(r[0] - 8, r[1] - 3.5, 16, 7);
+            gc.setStroke(Color.web("#1e2226"));
+            gc.setLineWidth(1);
+            gc.strokeOval(r[0] - 8, r[1] - 3.5, 16, 7);
+        }
+        // Caja de suministros colgando (solo si lleva carga)
+        if (drone.getCargo() > 0) {
+            gc.setFill(Color.web("#c49a5c"));
+            gc.fillRect(-5, 4, 10, 7);
+            gc.setStroke(Color.web("#6b4f2a"));
+            gc.strokeRect(-5, 4, 10, 7);
+        }
+        // Cuerpo
+        gc.setFill(Color.web("#2b3036"));
+        gc.fillOval(-8, -5, 16, 10);
+        gc.setFill(Color.web("#e2b93b"));
+        gc.fillOval(-4, -3, 8, 5);
+        // Luces: roja a la izquierda, verde a la derecha
+        gc.setFill(Color.web("#ff3b30"));
+        gc.fillOval(-15, -8, 4, 4);
+        gc.setFill(Color.web("#3fff6a"));
+        gc.fillOval(11, -8, 4, 4);
+
+        // Barra de batería encima del dron
+        double level = drone.getBattery() / Drone.MAX_BATTERY;
+        Color batteryColor = level > 0.5 ? SAFE : (level > 0.25 ? MEDIUM : DANGER);
+        gc.setFill(Color.rgb(15, 15, 15, 0.85));
+        gc.fillRect(-14, -17, 28, 6);
+        gc.setFill(batteryColor);
+        gc.fillRect(-13, -16, 26 * level, 4);
+
+        gc.restore();
+    }
+
+    /** Barra de suministros debajo de cada refugio; anillo verde cuando ya está abastecido. */
+    private void drawSupplyBars(GraphicsContext gc) {
+        if (supplies == null) return;
+        for (Shelter s : supplies.all()) {
+            Node n = s.getNode();
+            double x = sx(n), y = sy(n) - FLY_H;
+            int need = s.getNeed();
+            double w = 24.0 / need;   // ancho de cada casilla de la barra
+
+            gc.setFill(Color.rgb(15, 15, 15, 0.85));
+            gc.fillRect(x - 13, y + 8, 26, 6);
+            for (int i = 0; i < need; i++) {
+                gc.setFill(i < s.getReceived() ? Color.web("#3fbf5f") : Color.web("#555555"));
+                gc.fillRect(x - 12 + i * w, y + 9, w - 1, 4);
+            }
+            if (s.isSupplied()) {
+                gc.setStroke(Color.web("#3fbf5f"));
+                gc.setLineWidth(2.5);
+                gc.strokeOval(x - 9, y - 9, 18, 18);
+            }
+        }
+    }
+
+    // =====================================================================
     // Grafo: corredores, costos y nodos
     // =====================================================================
 
@@ -1043,15 +1187,15 @@ public class MapView extends Canvas {
         gc.setFont(Font.font("Monospaced", 12));
         label(gc, "Costo del corredor", 56, 136);
 
-        // Panel inferior: tipos de ubicación
+        // Panel inferior: tipos de ubicación, dron y suministros
         gc.setFill(Color.rgb(20, 20, 18, 0.82));
-        gc.fillRoundRect(10, 540, 205, 146, 12, 12);
+        gc.fillRoundRect(10, 528, 205, 162, 12, 12);
         String[] names = {"Centro de control", "Refugio", "Hospital abandonado",
                 "Torre de control", "Aparición de horda"};
         Color[] colors = {Color.web("#9acd32"), Color.web("#e0a060"), Color.web("#f0f0f0"),
                 Color.web("#8fa3b8"), Color.web("#e53935")};
         for (int i = 0; i < names.length; i++) {
-            double y = 562 + i * 24;
+            double y = 546 + i * 20;
             gc.setFill(colors[i]);
             gc.fillOval(20, y - 6, 12, 12);
             gc.setStroke(Color.WHITE);
@@ -1059,6 +1203,22 @@ public class MapView extends Canvas {
             gc.strokeOval(20, y - 6, 12, 12);
             label(gc, names[i], 40, y + 4);
         }
+        // Dron
+        double dy = 546 + 5 * 20;
+        gc.setFill(Color.web("#2b3036"));
+        gc.fillOval(20, dy - 4, 12, 8);
+        gc.setFill(Color.web("#e2b93b"));
+        gc.fillOval(23, dy - 2, 6, 4);
+        label(gc, "Dron (barra = batería)", 40, dy + 4);
+        // Suministros
+        double sy2 = 546 + 6 * 20;
+        gc.setFill(Color.rgb(15, 15, 15, 0.85));
+        gc.fillRect(18, sy2 - 3, 16, 6);
+        gc.setFill(Color.web("#3fbf5f"));
+        gc.fillRect(19, sy2 - 2, 7, 4);
+        gc.setFill(Color.web("#555555"));
+        gc.fillRect(27, sy2 - 2, 6, 4);
+        label(gc, "Suministros recibidos", 40, sy2 + 4);
     }
 
     private void label(GraphicsContext gc, String text, double x, double y) {
