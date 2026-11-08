@@ -36,4 +36,12 @@ class CityFactoryTest {
         // Desde R-01 se llega a los otros 12 lugares más él mismo: todos menos C-01
         assertEquals(13, city.reachableFrom("R-01").size());
     }
+
+    @Test
+    void todasLasDistanciasSonPositivas() {
+        Graph city = CityFactory.createCity();
+        for (Edge e : city.getAllEdges()) {
+            assertTrue(e.getDistance() > 0, "Distancia inválida en " + e);
+        }
+    }
 }

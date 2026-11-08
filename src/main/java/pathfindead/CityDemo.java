@@ -19,6 +19,14 @@ public class CityDemo {
                 System.out.printf("   -> %s (distancia %.2f)%n", vecino, edge.getDistance());
             }
         }
+
+        System.out.println("\n=== Distancias de las 24 conexiones ===");
+        double min = Double.MAX_VALUE, max = 0;
+        for (Edge e : city.getAllEdges()) {
+            System.out.printf("%-15s %8.2f%n", e, e.getDistance());
+            min = Math.min(min, e.getDistance());
+            max = Math.max(max, e.getDistance());
+        }
+        System.out.printf("Minima: %.2f | Maxima: %.2f%n", min, max);
     }
 }
-
