@@ -78,4 +78,13 @@ class GraphTest {
         Node vecino = deB.get(0).other(graph.getNode("B"));
         assertEquals("A", vecino.getId());
     }
+
+    @Test
+    void detectaSiElGrafoNoEstaConectado() {
+        graph.connect("A", "B");
+        assertFalse(graph.isConnected());   // C quedó aislado
+
+        graph.connect("B", "C");
+        assertTrue(graph.isConnected());
+    }
 }

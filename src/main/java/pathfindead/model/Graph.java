@@ -8,6 +8,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 public class Graph {
     // Búsqueda rápida de un lugar por su id (ej. "C-01")
@@ -89,6 +91,36 @@ public class Graph {
     public int edgeCount() {
         return getAllEdges().size();
     }
+
+    /** Todos los lugares a los que se puede llegar desde el lugar indicado (incluido él mismo). */
+    public Set<Node> reachableFrom(String startId) {
+        Node start = getNode(startId);
+        Set<Node> visited = new LinkedHashSet<>();
+        Deque<Node> queue = new ArrayDeque<>();
+        visited.add(start);
+        queue.add(start);
+
+        while (!queue.isEmpty()) {
+            Node current = queue.poll();
+            for (Edge edge : adjacency.get(current)) {
+                Node neighbor = edge.other(current);
+                if (visited.add(neighbor)) {   // add devuelve true solo si no estaba visitado
+                    queue.add(neighbor);
+                }
+            }
+        }
+        return visited;
+    }
+
+    /** True si desde cualquier lugar se puede llegar a todos los demás. */
+    public boolean isConnected() {
+        if (nodesById.isEmpty()) {
+            return true;
+        }
+        Node first = nodesById.values().iterator().next();
+        return reachableFrom(first.getId()).size() == nodesById.size();
+    }
+
 }
 
 
