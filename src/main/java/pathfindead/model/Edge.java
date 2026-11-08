@@ -10,8 +10,19 @@ public class Edge {
     private final Node b;
     private final double distance;
 
+    // Peligros actuales
     private int zombieDanger = 0;
     private int hostileDanger = 0;
+    private int windRisk = 0;
+
+    // Punto 37: costo original y los peligros con los que empezó
+    private double originalCost;
+    private int originalZombieDanger = 0;
+    private int originalHostileDanger = 0;
+    private int originalWindRisk = 0;
+
+    // Punto 38: costo actual
+    private double currentCost;
 
     public Edge(Node a, Node b) {
         Objects.requireNonNull(a, "a");
@@ -22,17 +33,31 @@ public class Edge {
         this.a = a;
         this.b = b;
         this.distance = Math.hypot(a.getX() - b.getX(), a.getY() - b.getY());
+        // Sin peligros, el costo es igual a la distancia
+        this.currentCost = distance;
+        this.originalCost = distance;
     }
 
     public Node getA() { return a; }
     public Node getB() { return b; }
     public double getDistance() { return distance; }
 
+    // ---------- Costos ----------
+
+    public double getOriginalCost() { return originalCost; }
+    public double getCurrentCost() { return currentCost; }
+
+    /** Costo que usan los algoritmos: siempre el actual. */
+    public double getCost() { return currentCost; }
+
+    // ---------- Peligros ----------
+
     public int getZombieDanger() { return zombieDanger; }
 
     public void setZombieDanger(int level) {
         checkLevel(level, "zombi");
         this.zombieDanger = level;
+        recalculateCost();
     }
 
     public int getHostileDanger() { return hostileDanger; }
@@ -40,6 +65,49 @@ public class Edge {
     public void setHostileDanger(int level) {
         checkLevel(level, "hostil");
         this.hostileDanger = level;
+        recalculateCost();
+    }
+
+    public int getWindRisk() { return windRisk; }
+
+    public void setWindRisk(int level) {
+        checkLevel(level, "de viento");
+        this.windRisk = level;
+        recalculateCost();
+    }
+
+    // ---------- Punto 39: actualizar el costo ----------
+
+    /**
+     * Cambia los tres peligros a la vez y recalcula el costo actual.
+     * Si algún valor es inválido, no cambia nada.
+     */
+    public void updateHazards(int zombies, int hostiles, int wind) {
+        checkLevel(zombies, "zombi");
+        checkLevel(hostiles, "hostil");
+        checkLevel(wind, "de viento");
+        this.zombieDanger = zombies;
+        this.hostileDanger = hostiles;
+        this.windRisk = wind;
+        recalculateCost();
+    }
+
+    /** Guarda los peligros y el costo actuales como los originales. */
+    public void saveAsOriginal() {
+        this.originalZombieDanger = zombieDanger;
+        this.originalHostileDanger = hostileDanger;
+        this.originalWindRisk = windRisk;
+        this.originalCost = currentCost;
+    }
+
+    /** Devuelve el corredor a sus peligros y costo originales. */
+    public void resetToOriginal() {
+        updateHazards(originalZombieDanger, originalHostileDanger, originalWindRisk);
+    }
+
+    /** Recalcula el costo actual con la fórmula. */
+    private void recalculateCost() {
+        this.currentCost = CostFormula.calculate(distance, zombieDanger, hostileDanger, windRisk);
     }
 
     /** Valida que un nivel de peligro esté entre 0 y 5. */
@@ -50,6 +118,8 @@ public class Edge {
                             + MIN_DANGER + " y " + MAX_DANGER);
         }
     }
+
+    // ---------- Fase 3 ----------
 
     /** Devuelve el extremo contrario al nodo indicado. */
     public Node other(Node node) {

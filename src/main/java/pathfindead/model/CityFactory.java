@@ -64,9 +64,20 @@ public final class CityFactory {
         city.connect("R-06", "R-04");
         city.connect("T-01", "R-03");
         city.connect("R-05", "Z-02");
+
+        // Fase 4: peligros de cada corredor
         assignZombieDanger(city);
+        assignHostileDanger(city);
+        assignWindRisk(city);
+        saveOriginalCosts(city);
+        CostValidator.validate(city);
         return city;
     }
+
+    // =====================================================================
+    // Peligro zombi (punto 33)
+    // =====================================================================
+
     /** Asigna el nivel de peligro zombi (0–5) a cada corredor. */
     private static void assignZombieDanger(Graph city) {
         // Nivel 5: entre dos puntos de horda
@@ -118,4 +129,127 @@ public final class CityFactory {
             throw new IllegalArgumentException("No existe la conexión " + idA + " - " + idB);
         }
     }
+
+    // =====================================================================
+    // Peligro de grupos hostiles (punto 34)
+    // =====================================================================
+
+    /** Asigna el nivel de peligro por grupos hostiles (0–5) a cada corredor. */
+    private static void assignHostileDanger(Graph city) {
+        // Nivel 3: saqueo de hospitales
+        setHostileDanger(city, "R-02", "H-01", 3);
+        setHostileDanger(city, "R-05", "H-02", 3);
+        setHostileDanger(city, "H-01", "T-02", 3);
+        // Nivel 2: cerca de hospitales o torres
+        setHostileDanger(city, "H-01", "C-01", 2);
+        setHostileDanger(city, "H-02", "Z-02", 2);
+        setHostileDanger(city, "H-01", "Z-01", 2);
+        setHostileDanger(city, "T-02", "Z-01", 2);
+        setHostileDanger(city, "R-03", "T-02", 2);
+        setHostileDanger(city, "R-06", "R-04", 2);
+        // Nivel 1: riesgo bajo
+        setHostileDanger(city, "T-01", "R-03", 1);
+        setHostileDanger(city, "T-01", "C-01", 1);
+        setHostileDanger(city, "R-06", "T-01", 1);
+        setHostileDanger(city, "C-01", "R-06", 1);
+        setHostileDanger(city, "R-05", "Z-02", 1);
+        setHostileDanger(city, "Z-01", "C-01", 1);
+        setHostileDanger(city, "Z-03", "C-01", 1);
+        setHostileDanger(city, "R-03", "R-01", 1);
+        setHostileDanger(city, "R-02", "R-05", 1);
+        setHostileDanger(city, "R-04", "R-05", 1);
+        // Nivel 0: zona protegida o territorio de hordas
+        setHostileDanger(city, "Z-02", "Z-03", 0);
+        setHostileDanger(city, "C-01", "R-01", 0);
+        setHostileDanger(city, "C-01", "R-04", 0);
+        setHostileDanger(city, "C-01", "R-03", 0);
+        setHostileDanger(city, "R-01", "R-02", 0);
+    }
+
+    /** Busca la conexión entre dos IDs y le asigna el nivel de peligro hostil. */
+    private static void setHostileDanger(Graph city, String idA, String idB, int level) {
+        boolean found = false;
+        for (Node node : city.getNodes()) {
+            for (Edge e : city.getEdges(node)) {
+                String a = e.getA().getId();
+                String b = e.getB().getId();
+                if ((a.equals(idA) && b.equals(idB)) || (a.equals(idB) && b.equals(idA))) {
+                    e.setHostileDanger(level);
+                    found = true;
+                }
+            }
+        }
+        if (!found) {
+            throw new IllegalArgumentException("No existe la conexión " + idA + " - " + idB);
+        }
+    }
+
+    // =====================================================================
+    // Riesgo ambiental: viento (punto 35)
+    // =====================================================================
+
+    /** Asigna el riesgo ambiental por viento (0–5) a cada corredor. */
+    private static void assignWindRisk(Graph city) {
+        // Nivel 3: Malecón expuesto y corredor más largo
+        setWindRisk(city, "T-02", "Z-01", 3);
+        setWindRisk(city, "R-03", "T-02", 3);
+        setWindRisk(city, "H-01", "T-02", 3);
+        setWindRisk(city, "Z-01", "C-01", 3);
+        // Nivel 2: torre Piscina y zona Oriental abierta
+        setWindRisk(city, "R-06", "T-01", 2);
+        setWindRisk(city, "T-01", "R-03", 2);
+        setWindRisk(city, "T-01", "C-01", 2);
+        setWindRisk(city, "Z-02", "Z-03", 2);
+        setWindRisk(city, "H-02", "Z-02", 2);
+        setWindRisk(city, "R-05", "Z-02", 2);
+        setWindRisk(city, "H-01", "Z-01", 2);
+        // Nivel 1: algo de exposición
+        setWindRisk(city, "H-01", "C-01", 1);
+        setWindRisk(city, "C-01", "R-06", 1);
+        setWindRisk(city, "C-01", "R-03", 1);
+        setWindRisk(city, "R-06", "R-04", 1);
+        setWindRisk(city, "Z-03", "C-01", 1);
+        setWindRisk(city, "R-03", "R-01", 1);
+        // Nivel 0: protegidos por edificios
+        setWindRisk(city, "C-01", "R-01", 0);
+        setWindRisk(city, "C-01", "R-04", 0);
+        setWindRisk(city, "R-01", "R-02", 0);
+        setWindRisk(city, "R-02", "H-01", 0);
+        setWindRisk(city, "R-02", "R-05", 0);
+        setWindRisk(city, "R-04", "R-05", 0);
+        setWindRisk(city, "R-05", "H-02", 0);
+    }
+
+    /** Busca la conexión entre dos IDs y le asigna el riesgo de viento. */
+    private static void setWindRisk(Graph city, String idA, String idB, int level) {
+        boolean found = false;
+        for (Node node : city.getNodes()) {
+            for (Edge e : city.getEdges(node)) {
+                String a = e.getA().getId();
+                String b = e.getB().getId();
+                if ((a.equals(idA) && b.equals(idB)) || (a.equals(idB) && b.equals(idA))) {
+                    e.setWindRisk(level);
+                    found = true;
+                }
+            }
+        }
+        if (!found) {
+            throw new IllegalArgumentException("No existe la conexión " + idA + " - " + idB);
+        }
+    }
+
+
+    // =====================================================================
+    // Costos originales (punto 37)
+    // =====================================================================
+
+    /** Guarda el estado inicial de cada corredor como su estado original. */
+    private static void saveOriginalCosts(Graph city) {
+        for (Node node : city.getNodes()) {
+            for (Edge e : city.getEdges(node)) {
+                e.saveAsOriginal();
+            }
+        }
+    }
+
 }
