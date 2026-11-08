@@ -64,7 +64,58 @@ public final class CityFactory {
         city.connect("R-06", "R-04");
         city.connect("T-01", "R-03");
         city.connect("R-05", "Z-02");
-
+        assignZombieDanger(city);
         return city;
+    }
+    /** Asigna el nivel de peligro zombi (0–5) a cada corredor. */
+    private static void assignZombieDanger(Graph city) {
+        // Nivel 5: entre dos puntos de horda
+        setZombieDanger(city, "Z-02", "Z-03", 5);
+        // Nivel 4: tocan un punto de horda
+        setZombieDanger(city, "Z-01", "C-01", 4);
+        setZombieDanger(city, "Z-03", "C-01", 4);
+        setZombieDanger(city, "H-01", "Z-01", 4);
+        setZombieDanger(city, "R-05", "Z-02", 4);
+        setZombieDanger(city, "H-02", "Z-02", 4);
+        // Nivel 3: horda junto a una torre vigilada
+        setZombieDanger(city, "T-02", "Z-01", 3);
+        // Nivel 2: tocan un hospital abandonado
+        setZombieDanger(city, "H-01", "C-01", 2);
+        setZombieDanger(city, "R-02", "H-01", 2);
+        setZombieDanger(city, "R-05", "H-02", 2);
+        setZombieDanger(city, "H-01", "T-02", 2);
+        // Nivel 1: riesgo bajo
+        setZombieDanger(city, "C-01", "R-06", 1);
+        setZombieDanger(city, "T-01", "C-01", 1);
+        setZombieDanger(city, "C-01", "R-03", 1);
+        setZombieDanger(city, "R-03", "R-01", 1);
+        setZombieDanger(city, "R-02", "R-05", 1);
+        setZombieDanger(city, "R-03", "T-02", 1);
+        setZombieDanger(city, "T-01", "R-03", 1);
+        setZombieDanger(city, "R-04", "R-05", 1);
+        setZombieDanger(city, "R-06", "R-04", 1);
+        // Nivel 0: corredores seguros
+        setZombieDanger(city, "C-01", "R-01", 0);
+        setZombieDanger(city, "C-01", "R-04", 0);
+        setZombieDanger(city, "R-01", "R-02", 0);
+        setZombieDanger(city, "R-06", "T-01", 0);
+    }
+
+    /** Busca la conexión entre dos IDs y le asigna el nivel de peligro zombi. */
+    private static void setZombieDanger(Graph city, String idA, String idB, int level) {
+        boolean found = false;
+        for (Node node : city.getNodes()) {
+            for (Edge e : city.getEdges(node)) {
+                String a = e.getA().getId();
+                String b = e.getB().getId();
+                if ((a.equals(idA) && b.equals(idB)) || (a.equals(idB) && b.equals(idA))) {
+                    e.setZombieDanger(level);
+                    found = true;
+                }
+            }
+        }
+        if (!found) {
+            throw new IllegalArgumentException("No existe la conexión " + idA + " - " + idB);
+        }
     }
 }

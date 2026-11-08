@@ -4,8 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class CityFactoryTest {
 
@@ -39,9 +38,60 @@ class CityFactoryTest {
 
     @Test
     void todasLasDistanciasSonPositivas() {
-        Graph city = CityFactory.createCity();
         for (Edge e : city.getAllEdges()) {
             assertTrue(e.getDistance() > 0, "Distancia inválida en " + e);
         }
+    }
+
+    // ---------- Peligro zombi (punto 33) ----------
+
+    @Test
+    void peligroZombiDentroDelRango() {
+        for (Edge e : city.getAllEdges()) {
+            int d = e.getZombieDanger();
+            assertTrue(d >= 0 && d <= 5, "Peligro fuera de rango en " + e);
+        }
+    }
+
+    @Test
+    void corredorEntreHordasEsElMasPeligroso() {
+        for (Edge e : city.getAllEdges()) {
+            if (e.toString().contains("Z-02") && e.toString().contains("Z-03")) {
+                assertEquals(5, e.getZombieDanger());
+            }
+        }
+    }
+
+    @Test
+    void rechazaPeligroInvalido() {
+        Edge e = city.getAllEdges().iterator().next();
+        assertThrows(IllegalArgumentException.class, () -> e.setZombieDanger(6));
+        assertThrows(IllegalArgumentException.class, () -> e.setZombieDanger(-1));
+    }
+
+    // ---------- Peligro hostil (punto 34) ----------
+
+    @Test
+    void peligroHostilDentroDelRango() {
+        for (Edge e : city.getAllEdges()) {
+            int d = e.getHostileDanger();
+            assertTrue(d >= 0 && d <= 5, "Peligro hostil fuera de rango en " + e);
+        }
+    }
+
+    @Test
+    void hospitalesTienenPeligroHostilAlto() {
+        for (Edge e : city.getAllEdges()) {
+            if (e.toString().contains("R-02") && e.toString().contains("H-01")) {
+                assertEquals(3, e.getHostileDanger());
+            }
+        }
+    }
+
+    @Test
+    void rechazaPeligroHostilInvalido() {
+        Edge e = city.getAllEdges().iterator().next();
+        assertThrows(IllegalArgumentException.class, () -> e.setHostileDanger(6));
+        assertThrows(IllegalArgumentException.class, () -> e.setHostileDanger(-1));
     }
 }

@@ -20,10 +20,11 @@ public class CityDemo {
             }
         }
 
-        System.out.println("\n=== Distancias de las 24 conexiones ===");
+        System.out.println("\n=== Distancias y peligros de las 24 conexiones ===");
         double min = Double.MAX_VALUE, max = 0;
         for (Edge e : city.getAllEdges()) {
-            System.out.printf("%-15s %8.2f%n", e, e.getDistance());
+            System.out.printf("%-15s dist %6.2f | zombis %d | hostiles %d%n",
+                    e, e.getDistance(), e.getZombieDanger(), e.getHostileDanger());
             min = Math.min(min, e.getDistance());
             max = Math.max(max, e.getDistance());
         }
